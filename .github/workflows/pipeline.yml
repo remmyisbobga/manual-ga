@@ -9,7 +9,8 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT }}
 
 permissions:
-  contents: 'read'
+  id-token: write  # Required for generating ID tokens with WIF
+  contents: read
 
 jobs:
   terraform:
@@ -22,10 +23,10 @@ jobs:
 
     - name: Setup Google Cloud Auth
       id: 'auth'
-      uses: 'google-github-actions/auth@v2'  # Updated to the latest version
+      uses: 'google-github-actions/auth@v2'
       with:
         workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}  # Ensure this secret is set
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
     - name: Install Terraform
       uses: hashicorp/setup-terraform@v2
