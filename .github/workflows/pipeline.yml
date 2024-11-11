@@ -9,7 +9,7 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT }}
 
 permissions:
-  id-token: write  # Required for Workload Identity Federation (WIF)
+  id-token: write  # Required for generating ID tokens with WIF
   contents: read
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.9.8  # Latest version
+        terraform_version: 1.9.8
 
     - name: Terraform Init
       run: terraform init
@@ -39,4 +39,5 @@ jobs:
       run: terraform plan
 
     - name: Terraform Apply
+      if: github.ref == 'refs/heads/main'
       run: terraform apply -auto-approve
