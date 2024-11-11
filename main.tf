@@ -3,10 +3,7 @@ name: GCP Infrastructure Deployment
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - '*'
+      - '*'  # Trigger on pushes to any branch
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT }}
