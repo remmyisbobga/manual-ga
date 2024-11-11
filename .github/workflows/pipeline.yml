@@ -3,13 +3,13 @@ name: GCP Infrastructure Deployment
 on:
   push:
     branches:
-      - '*'  # Run on pushes to any branch
+      - '*'  # Trigger on pushes to any branch
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT }}
 
 permissions:
-  id-token: write  # Required for generating ID tokens with WIF
+  id-token: write  # Required for Workload Identity Federation (WIF)
   contents: read
 
 jobs:
@@ -26,11 +26,12 @@ jobs:
       with:
         workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        project_id: ${{ secrets.GCP_PROJECT }}  # Specify project_id directly
 
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.9.8
+        terraform_version: 1.9.8  # Replace with the latest Terraform version
 
     - name: Terraform Init
       run: terraform init
@@ -40,4 +41,4 @@ jobs:
 
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main'
-      run: terraform apply -auto-approve
+      run: terraform apply 
