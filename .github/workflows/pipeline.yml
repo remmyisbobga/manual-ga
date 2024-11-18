@@ -3,7 +3,8 @@ name: GCP Authentication Workflow
 on: 
   push:
     branches:
-      - main
+      - main       # Trigger on the main branch
+      - feature/*  # Trigger on all feature branches with the prefix "feature/"
 
 jobs:
   authenticate:
@@ -17,8 +18,4 @@ jobs:
         env:
           GCP_JSON_KEY: ${{ secrets.GCP_JSON_KEY }}
         run: |
-          echo "${GCP_JSON_KEY}" > "${HOME}/gcp-key.json"
-          gcloud auth activate-service-account --key-file="${HOME}/gcp-key.json"
-
-      - name: Configure gcloud
-        run: gcloud config set project myzesoftlyproject27
+          echo "${GCP_JSON_KEY}" >
