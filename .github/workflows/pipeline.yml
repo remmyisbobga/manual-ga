@@ -16,6 +16,6 @@ jobs:
 
       - name: Authenticate with GCP
         env:
-          GCP_JSON_KEY: ${{ secrets.GCP_JSON_KEY }}
+          GCP_JSON_KEY: ${{ secrets.gcp_sa.json }}
         run: |
-          echo "${GCP_JSON_KEY}" >
+          echo "${gcp_sa.json}" >
