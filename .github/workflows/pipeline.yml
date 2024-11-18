@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main       # Trigger on the main branch
-      - feature/*  # Trigger on all feature branches with the prefix "feature/"
+      - feat/*  # Trigger on all feature branches with the prefix "feature/"
 
 
 jobs:
