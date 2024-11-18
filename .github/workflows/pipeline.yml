@@ -5,6 +5,7 @@ on:
       - main       # Trigger on the main branch
       - feature/*  # Trigger on all feature branches with the prefix "feature/"
 
+
 jobs:
   authenticate:
     runs-on: ubuntu-latest
