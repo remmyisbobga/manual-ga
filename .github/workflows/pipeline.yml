@@ -1,5 +1,4 @@
 name: GCP Authentication Workflow
-
 on: 
   push:
     branches:
