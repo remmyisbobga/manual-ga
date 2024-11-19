@@ -45,7 +45,7 @@ jobs:
           # Set the GCP project
           gcloud config set project myzesoftlyproject27
 
-      # Step 5: Set up Terraform
+       # Step 5: Set up Terraform
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
