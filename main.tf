@@ -1,10 +1,10 @@
+# main.tf
 provider "google" {
-  project     = "myzesoftlyproject27"  # Replace with your project ID
-  region      = "us-central1"         # Replace with your desired region
-  credentials = file("gcp-key.json")  # Use the credentials file created in GitHub Actions
+  project = var.project_id
+  region  = var.region
 }
 
-resource "google_storage_bucket" "example" {
-  name     = "example-bucket"
-  location = "US"
+resource "google_storage_bucket" "example_bucket" {
+  name     = var.bucket_name
+  location = var.region
 }

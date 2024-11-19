@@ -1,13 +1,18 @@
-name: GCP Infrastructure Deployment
+name: Deploy Terraform to GCP
 
 on:
   push:
     branches:
       - main
-      - 'feat/*'  # Trigger for feature branches
+      - feat/* # Add feature branches trigger
+  pull_request:
+    branches:
+      - main
+      - feat/* # Trigger workflow on PRs targeting main or feature branches
 
 jobs:
   terraform:
+    name: Terraform Workflow
     runs-on: ubuntu-latest
 
     steps:
@@ -17,21 +22,21 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.5.7
+        terraform_version: 1.5.6 # Replace with your desired version
 
-    - name: Configure GCP Credentials
+    - name: Authenticate to GCP
       env:
-        GCP_JSON_KEY: ${{ secrets.GCP_CREDENTIALS }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-key.json
       run: |
-        echo "$GCP_JSON_KEY" > gcp-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=gcp-key.json
+        echo "${{ secrets.GCP_CREDENTIALS_JSON }}" > $GOOGLE_APPLICATION_CREDENTIALS
+        gcloud auth activate-service-account terraform-sa@myzesoftlyproject27.iam.gserviceaccount.com --key-file=$GOOGLE_APPLICATION_CREDENTIALS --project=myzesoftlyproject27
 
-    - name: Initialize Terraform
+    - name: Terraform Init
       run: terraform init
 
     - name: Terraform Plan
-      run: terraform plan -out=tfplan
+      run: terraform plan -var="project_id=myzesoftlyproject27"
 
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main'
-      run: terraform apply -input=false tfplan
+      if: github.ref == 'refs/heads/main' # Apply only on the main branch
+      run: terraform apply -auto-approve -var="project_id=myzesoftlyproject27"
