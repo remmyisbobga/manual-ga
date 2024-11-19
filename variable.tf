@@ -2,21 +2,19 @@
 
 # The GCP Project ID
 variable "project_id" {
-  description = "The GCP Project ID"
+  description = "The GCP Project ID to deploy resources to"
   type        = string
-  default     = "myzesoftlyproject27" # Default value for project ID
 }
 
 # The GCP region
 variable "region" {
-  description = "The GCP region"
+  description = "The GCP region where resources will be created"
   type        = string
-  default     = "us-central1" # Optional default value
 }
 
 # The name of the GCS bucket
 variable "bucket_name" {
-  description = "The name of the GCS bucket"
+  description = "The name of the GCS bucket to be created"
   type        = string
 }
 
@@ -24,5 +22,4 @@ variable "bucket_name" {
 variable "google_credentials_file" {
   description = "The path to the Google Cloud credentials file"
   type        = string
-  default     = "/home/runner/gcloud-key.json"
 }
