@@ -11,3 +11,4 @@ bucket_name = "my-terraform-bucket"
 
 # Path to the Google Cloud credentials file
 google_credentials_file = "/home/runner/gcloud-key.json"
+

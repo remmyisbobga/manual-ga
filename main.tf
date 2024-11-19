@@ -7,6 +7,13 @@ provider "google" {
 }
 
 resource "google_storage_bucket" "example_bucket" {
-  name     = var.bucket_name
-  location = var.region
+  name          = "${var.bucket_name}-${random_id.unique_id.hex}"
+  location      = var.region
+  storage_class = "STANDARD"
 }
+
+resource "random_id" "unique_id" {
+  byte_length = 4
+}
+
+
