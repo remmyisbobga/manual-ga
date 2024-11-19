@@ -1,43 +1,10 @@
-name: GCP Infrastructure Deployment
+provider "google" {
+  project     = "myzesoftlyproject27"  # Replace with your project ID
+  region      = "us-central1"         # Replace with your desired region
+  credentials = file("gcp-key.json")  # Use the credentials file created in GitHub Actions
+}
 
-on:
-  push:
-    branches:
-      - '*'  # Trigger on pushes to any branch
-
-env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT }}
-
-permissions:
-  contents: 'read'
-
-jobs:
-  terraform:
-    name: Terraform
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Google Cloud Auth
-      id: 'auth'
-      uses: 'google-github-actions/auth@v2'
-      with:
-        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-    - name: Install Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.9.8
-
-    - name: Terraform Init
-      run: terraform init
-
-    - name: Terraform Plan
-      run: terraform plan
-
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main'
-      run: terraform apply -auto-approve
+resource "google_storage_bucket" "example" {
+  name     = "example-bucket"
+  location = "US"
+}
