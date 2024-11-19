@@ -21,15 +21,22 @@ jobs:
         with:
           version: 'latest'
 
-      # Step 3: Authenticate using the Service Account JSON key
+      # Step 3: Debug GCP Credentials (Optional for Debugging)
+      - name: Debug GCP Credentials
+        env:
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+        run: |
+          echo "$GCP_CREDENTIALS" | jq . || echo "Invalid JSON in GCP_CREDENTIALS"
+
+      # Step 4: Authenticate to GCP
       - name: Authenticate to GCP
         env:
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: |
           # Write the GCP credentials to a file
-          echo "${{ secrets.GCP_CREDENTIALS }}" > $HOME/gcloud-key.json
+          echo "$GCP_CREDENTIALS" > $HOME/gcloud-key.json
 
-          # Debugging: Validate the JSON content (optional)
+          # Validate the JSON content
           cat $HOME/gcloud-key.json | jq . || echo "Invalid JSON in GCP_CREDENTIALS"
 
           # Authenticate with the Service Account
@@ -38,27 +45,22 @@ jobs:
           # Set the GCP project
           gcloud config set project myzesoftlyproject27
 
-      # Step 4: Set up Terraform
+      # Step 5: Set up Terraform
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.6
 
-      # Step 5: Initialize Terraform
+      # Step 6: Initialize Terraform
       - name: Terraform Init
         run: terraform init
 
-      # Step 6: Terraform Format and Validate
+      # Step 7: Terraform Format and Validate
       - name: Terraform Sanity Check
         run: |
           terraform fmt -check
           terraform validate
 
-      # Step 7: Terraform Plan
+      # Step 8: Terraform Plan
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
-
-      # Step 8: Terraform Apply
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feat/')
-        run: terraform apply -auto-approve tfplan
+        run: terraform pl
