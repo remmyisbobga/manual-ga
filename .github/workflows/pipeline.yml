@@ -1,20 +1,36 @@
-name: GCP Authentication Workflow
-on: 
+name: Terraform GCP Deployment
+
+on:
   push:
     branches:
-      - main       # Trigger on the main branch
-      - feat/*  # Trigger on all feature branches with the prefix "feature/"
+      - main
 
 jobs:
-  authenticate:
+  terraform:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Authenticate with GCP
-        env:
-          GCP_JSON_KEY: ${{ secrets.gcp_sa.json }}
-        run: |
-          echo "${gcp_sa.json}" >
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.7
+
+    - name: Configure GCP Credentials
+      env:
+        GCP_JSON_KEY: ${{ secrets.GCP_CREDENTIALS }}
+      run: |
+        echo "$GCP_JSON_KEY" > gcp-key.json
+        export GOOGLE_APPLICATION_CREDENTIALS=gcp-key.json
+
+    - name: Initialize Terraform
+      run: terraform init
+
+    - name: Terraform Plan
+      run: terraform plan -out=tfplan
+
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main'
+      run: terraform apply -input=false tfplan
