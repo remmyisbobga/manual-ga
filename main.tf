@@ -11,7 +11,6 @@
 #   location      = var.region
 #   storage_class = "STANDARD"
 # }
-
 # resource "random_id" "unique_id" {
 #   byte_length = 4
 # }
