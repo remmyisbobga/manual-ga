@@ -14,3 +14,11 @@ variable "bucket_name" {
   description = "The name of the GCS bucket"
   type        = string
 }
+
+variable "google_credentials_file" {
+  default = "/home/runner/gcloud-key.json"
+}
+
+variable "project_id" {
+  default = "myzesoftlyproject27"
+}

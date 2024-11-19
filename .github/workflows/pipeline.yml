@@ -1,14 +1,9 @@
-name: Deploy Terraform to GCP
+name: Terraform Deployment
 
 on:
   push:
     branches:
-      - main
-      - feat/* # Add feature branches trigger
-  pull_request:
-    branches:
-      - main
-      - feat/* # Trigger workflow on PRs targeting main or feature branches
+      - "feat/*"
 
 jobs:
   terraform:
@@ -16,27 +11,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    # Checkout the repository
+    - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Setup Terraform
+    # Setup Google Cloud CLI
+    - name: Set up Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: 'latest'
+
+    # Authenticate using the Service Account JSON key
+    - name: Authenticate to GCP
+      run: |
+        echo "${{ secrets.GCP_CREDENTIALS }}" > $HOME/gcloud-key.json
+        gcloud auth activate-service-account terraform-sa@myzesoftlyproject27.iam.gserviceaccount.com --key-file=$HOME/gcloud-key.json
+        gcloud config set project myzesoftlyproject27
+
+    # Set up Terraform
+    - name: Set up Terraform
       uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.5.6 # Replace with your desired version
+        terraform_version: 1.5.6
 
-    - name: Authenticate to GCP
-      env:
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-key.json
-      run: |
-        echo "${{ secrets.GCP_CREDENTIALS_JSON }}" > $GOOGLE_APPLICATION_CREDENTIALS
-        gcloud auth activate-service-account terraform-sa@myzesoftlyproject27.iam.gserviceaccount.com --key-file=$GOOGLE_APPLICATION_CREDENTIALS --project=myzesoftlyproject27
-
+    # Terraform Init
     - name: Terraform Init
       run: terraform init
 
-    - name: Terraform Plan
-      run: terraform plan -var="project_id=myzesoftlyproject27"
+    # Terraform Format and Validate
+    - name: Terraform Sanity Check
+      run: |
+        terraform fmt -check
+        terraform validate
 
+    # Terraform Plan
+    - name: Terraform Plan
+      run: terraform plan -out=tfplan
+
+    # Terraform Apply
     - name: Terraform Apply
-      if: github.ref == 'refs/heads/main' # Apply only on the main branch
-      run: terraform apply -auto-approve -var="project_id=myzesoftlyproject27"
+      if: github.ref == 'refs/heads/main' || github.ref == startsWith(github.ref, 'refs/heads/feat/')
+      run: terraform apply -auto-approve tfplan
