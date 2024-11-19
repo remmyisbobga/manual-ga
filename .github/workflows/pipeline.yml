@@ -50,7 +50,7 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -out=tfplan -var="bucket_name=my-terraform-bucket" -var="google_credentials_file=/home/runner/gcloud-key.json" -var="project_id=myzesoftlyproject27" -var="region=us-central1"
 
-      # Step 8: Terraform Deploy
-      - name: Terraform Deploy
+      # Step 8: Terraform Apply
+      - name: Terraform Apply
         if: success()
-        run: terraform apply -auto-approve tfplan -var="google_credentials_file=/home/runner/gcloud-key.json" -var="project_id=myzesoftlyproject27" -var="region=us-central1"
+        run: terraform apply -auto-approve tfplan
