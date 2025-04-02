@@ -1,44 +1,43 @@
-name: GCP Infrastructure Deployment
+name: Terraform GCP Authentication Test
 
 on:
-  push:
-    branches:
-      - '*'  # Trigger on pushes to any branch
-
-env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT }}
-
-permissions:
-  id-token: write  # Required for Workload Identity Federation (WIF)
-  contents: read
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to checkout'
+        required: true
+        type: string
+      terraform_action:
+        description: 'Terraform action to run (plan or apply)'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
 
 jobs:
   terraform:
-    name: Deploy with Terraform
+    name: 'Terraform'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write 
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
 
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-        project_id: ${{ secrets.GCP_PROJECT }}  # Specify project_id directly
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.branch }}
 
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.9.8  # Replace with the latest Terraform version
 
-    - name: Terraform Init
-      run: terraform init
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/neon-well-438222-b6/locations/global/workloadIdentityPools/gh-pooll/providers/gh-provider'
+          service_account: 'gh-service-account@neon-well-438222-b6.iam.gserviceaccount.com'
 
-    - name: Terraform Plan
-      run: terraform plan
-
-    - name: Terraform Apply
-      if: github.ref == 'refs/heads/main'
-      run: terraform apply 
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.terraform_action == 'apply' }}
+        run: terraform apply -auto-approve
