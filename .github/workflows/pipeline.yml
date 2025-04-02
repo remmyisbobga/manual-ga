@@ -55,6 +55,11 @@ jobs:
           }
           EOL
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.0.11
+          
       # Initialize Terraform
       - name: Terraform Init
         run: terraform init
