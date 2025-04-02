@@ -38,6 +38,32 @@ jobs:
           workload_identity_provider: 'projects/neon-well-438222-b6/locations/global/workloadIdentityPools/gh-pooll/providers/gh-provider'
           service_account: 'gh-service-account@neon-well-438222-b6.iam.gserviceaccount.com'
 
+      - name: Create Terraform file
+        run: |
+          cat > main.tf << 'EOL'
+          provider "google" {
+            project = "neon-well-438222-b6"
+            region  = "us-central1"
+          }
+
+          resource "google_storage_bucket" "test_bucket" {
+            name     = "test-bucket-remmy-unique-name"
+            location = "US"
+            force_destroy = true
+           
+            uniform_bucket_level_access = true
+          }
+          EOL
+
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Run Terraform Plan or Apply based on input
+      - name: Terraform Plan
+        if: ${{ github.event.inputs.terraform_action == 'plan' }}
+        run: terraform plan
+
       - name: Terraform Apply
         if: ${{ github.event.inputs.terraform_action == 'apply' }}
         run: terraform apply -auto-approve
