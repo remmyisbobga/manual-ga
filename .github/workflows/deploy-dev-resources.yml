@@ -20,12 +20,19 @@ jobs:
     strategy:
       matrix:
         resource: ['00resources', '01networking', '02security', '03databases', '04compute']
+        include:
+          - resource: '00resources'
+          - resource: '01networking'
+          - resource: '02security'
+          - resource: '03databases'
+          - resource: '04compute'
 
     concurrency:
       group: "dev-${{ matrix.resource }}"
       cancel-in-progress: false
 
-    if: "${{ github.event.inputs.resource_type == '' || github.event.inputs.resource_type == matrix.resource }}"
+    # Using GitHub Expressions syntax correctly for matrix context in job-level if
+    if: ${{ github.event.inputs.resource_type == '' || contains(matrix.resource, github.event.inputs.resource_type) }}
 
     steps:
       - name: Checkout Code
