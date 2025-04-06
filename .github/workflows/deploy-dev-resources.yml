@@ -31,7 +31,8 @@ jobs:
           echo "resource_path=envs/01dev/00resources" >> $GITHUB_OUTPUT
 
       - name: Display Working Directory
-        run: echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        run: |
+          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -84,7 +85,8 @@ jobs:
           echo "resource_path=envs/01dev/01networking" >> $GITHUB_OUTPUT
 
       - name: Display Working Directory
-        run: echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        run: |
+          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -137,7 +139,8 @@ jobs:
           echo "resource_path=envs/01dev/02security" >> $GITHUB_OUTPUT
 
       - name: Display Working Directory
-        run: echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        run: |
+          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -190,7 +193,8 @@ jobs:
           echo "resource_path=envs/01dev/03databases" >> $GITHUB_OUTPUT
 
       - name: Display Working Directory
-        run: echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        run: |
+          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -243,7 +247,8 @@ jobs:
           echo "resource_path=envs/01dev/04compute" >> $GITHUB_OUTPUT
 
       - name: Display Working Directory
-        run: echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        run: |
+          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
