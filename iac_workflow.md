@@ -244,4 +244,3 @@ sequenceDiagram
 6. **GCP Integration:** Leverage GCP best practices for resource management and security within the GitHub Actions workflows.
 
 This approach provides the same governance benefits as the more complex strategy but with significantly less overhead and potential for errors, while ensuring controlled and concurrent-safe deployments across multiple resource types and environments.
-```
