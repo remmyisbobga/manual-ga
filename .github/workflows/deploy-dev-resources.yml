@@ -1,285 +1,108 @@
-# File: .github/workflows/deploy-dev-resources.yml
-# This workflow deploys the dev environment resources in GCP using Terraform.
-# Each job deploys a specific resource type (e.g., 00resources, 01networking, etc.)
-# located under envs/01dev. Each job will only run if the input is empty (deploy all)
-# or matches its resource type.
-
-name: "Deploy Dev Resources"
+name: "Terraform CI/CD - Dev Environment"
 
 on:
+  push:
+    branches: [ "feat/**" ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
       resource_type:
-        description: 'Optional: Specific resource type to deploy (00resources, 01networking, 02security, 03databases, 04compute). Leave empty to deploy all.'
-        required: false
+        description: 'Resource type to deploy'
+        required: true
+        default: '00resources'
+        type: choice
+        options:
+          - "00resources"
+          - "01networking"
+          - "02security"
+          - "03databases"
+          - "04compute"
+
+permissions:
+  contents: read
 
 jobs:
-  dev-00resources:
-    name: "Dev 00resources"
+  validate:
+    name: Validate Dev Environment
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
-    concurrency:
-      group: "dev-00resources"
-      cancel-in-progress: false
-    if: ${{ github.event.inputs.resource_type == null || github.event.inputs.resource_type == '00resources' }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set Resource Path
-        id: vars
-        run: |
-          echo "resource_path=envs/01dev/00resources" >> $GITHUB_OUTPUT
-
-      - name: Display Working Directory
-        run: |
-          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init
+      - name: Terraform Init & Validate All Dev Modules
         run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform init
+          for dir in envs/01dev/*; do
+            echo "Validating $dir"
+            cd "$dir"
+            terraform init -backend=false
+            terraform fmt -check
+            terraform validate
+            cd - > /dev/null
+          done
 
-      - name: Terraform Format Check
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform fmt -check
-
-      - name: Terraform Validate
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform validate
-
-      - name: Terraform Plan
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform plan -out=tfplan
-
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: "tfplan-00resources"
-          path: "${{ steps.vars.outputs.resource_path }}/tfplan"
-
-      - name: Terraform Apply
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform apply -auto-approve -var-file=env.auto.tfvars
-
-  dev-01networking:
-    name: "Dev 01networking"
+  plan:
+    name: Plan Dev Resources
+    if: github.ref != 'refs/heads/main'
+    needs: validate
     runs-on: ubuntu-latest
-    concurrency:
-      group: "dev-01networking"
-      cancel-in-progress: false
-    if: ${{ github.event.inputs.resource_type == null || github.event.inputs.resource_type == '01networking' }}
+    strategy:
+      matrix:
+        resource: [ "00resources", "01networking", "02security", "03databases", "04compute" ]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set Resource Path
-        id: vars
-        run: |
-          echo "resource_path=envs/01dev/01networking" >> $GITHUB_OUTPUT
-
-      - name: Display Working Directory
-        run: |
-          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init
+      - name: Terraform Plan - Dev ${{ matrix.resource }}
         run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
+          cd envs/01dev/${{ matrix.resource }}
           terraform init
+          terraform plan -out=tfplan-${{ matrix.resource }}
 
-      - name: Terraform Format Check
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform fmt -check
-
-      - name: Terraform Validate
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform validate
-
-      - name: Terraform Plan
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform plan -out=tfplan
-
-      - name: Upload Plan Artifact
+      - name: Upload Plan
         uses: actions/upload-artifact@v3
         with:
-          name: "tfplan-01networking"
-          path: "${{ steps.vars.outputs.resource_path }}/tfplan"
+          name: tfplan-${{ matrix.resource }}
+          path: envs/01dev/${{ matrix.resource }}/tfplan-${{ matrix.resource }}
 
-      - name: Terraform Apply
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform apply -auto-approve -var-file=env.auto.tfvars
-
-  dev-02security:
-    name: "Dev 02security"
+  deploy:
+    name: Deploy Dev - ${{ github.event.inputs.resource_type }}
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     runs-on: ubuntu-latest
     concurrency:
-      group: "dev-02security"
+      group: "dev-${{ github.event.inputs.resource_type }}"
       cancel-in-progress: false
-    if: ${{ github.event.inputs.resource_type == null || github.event.inputs.resource_type == '02security' }}
+    environment:
+      name: dev
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set Resource Path
-        id: vars
-        run: |
-          echo "resource_path=envs/01dev/02security" >> $GITHUB_OUTPUT
-
-      - name: Display Working Directory
-        run: |
-          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init
+      - name: Terraform Init & Apply
         run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
+          cd envs/01dev/${{ github.event.inputs.resource_type }}
           terraform init
-
-      - name: Terraform Format Check
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform fmt -check
-
-      - name: Terraform Validate
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform validate
-
-      - name: Terraform Plan
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform plan -out=tfplan
-
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: "tfplan-02security"
-          path: "${{ steps.vars.outputs.resource_path }}/tfplan"
-
-      - name: Terraform Apply
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform apply -auto-approve -var-file=env.auto.tfvars
-
-  dev-03databases:
-    name: "Dev 03databases"
-    runs-on: ubuntu-latest
-    concurrency:
-      group: "dev-03databases"
-      cancel-in-progress: false
-    if: ${{ github.event.inputs.resource_type == null || github.event.inputs.resource_type == '03databases' }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set Resource Path
-        id: vars
-        run: |
-          echo "resource_path=envs/01dev/03databases" >> $GITHUB_OUTPUT
-
-      - name: Display Working Directory
-        run: |
-          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-
-      - name: Terraform Init
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform init
-
-      - name: Terraform Format Check
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform fmt -check
-
-      - name: Terraform Validate
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform validate
-
-      - name: Terraform Plan
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform plan -out=tfplan
-
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: "tfplan-03databases"
-          path: "${{ steps.vars.outputs.resource_path }}/tfplan"
-
-      - name: Terraform Apply
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform apply -auto-approve -var-file=env.auto.tfvars
-
-  dev-04compute:
-    name: "Dev 04compute"
-    runs-on: ubuntu-latest
-    concurrency:
-      group: "dev-04compute"
-      cancel-in-progress: false
-    if: ${{ github.event.inputs.resource_type == null || github.event.inputs.resource_type == '04compute' }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set Resource Path
-        id: vars
-        run: |
-          echo "resource_path=envs/01dev/04compute" >> $GITHUB_OUTPUT
-
-      - name: Display Working Directory
-        run: |
-          echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-
-      - name: Terraform Init
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform init
-
-      - name: Terraform Format Check
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform fmt -check
-
-      - name: Terraform Validate
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform validate
-
-      - name: Terraform Plan
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
-          terraform plan -out=tfplan
-
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: "tfplan-04compute"
-          path: "${{ steps.vars.outputs.resource_path }}/tfplan"
-
-      - name: Terraform Apply
-        run: |
-          cd "${{ steps.vars.outputs.resource_path }}"
           terraform apply -auto-approve -var-file=env.auto.tfvars
