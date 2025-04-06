@@ -3,7 +3,7 @@
 # It uses a matrix strategy to run the same pipeline (validate, plan, deploy)
 # for each resource type (e.g., 00resources, 01networking, etc.) located under envs/01dev.
 
-name: Deploy Dev Resources
+name: "Deploy Dev Resources"
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy Dev Resource ${{ matrix.resource }}
+    name: "Deploy Dev Resource ${{ matrix.resource }}"
     runs-on: ubuntu-latest
 
     strategy:
@@ -22,10 +22,10 @@ jobs:
         resource: ['00resources', '01networking', '02security', '03databases', '04compute']
 
     concurrency:
-      group: dev-${{ matrix.resource }}
+      group: "dev-${{ matrix.resource }}"
       cancel-in-progress: false
 
-    if: ${{ github.event.inputs.resource_type == '' || github.event.inputs.resource_type == matrix.resource }}
+    if: "${{ github.event.inputs.resource_type == '' || github.event.inputs.resource_type == matrix.resource }}"
 
     steps:
       - name: Checkout Code
@@ -36,38 +36,38 @@ jobs:
         run: echo "resource_path=envs/01dev/${{ matrix.resource }}" >> $GITHUB_OUTPUT
 
       - name: Display Working Directory
-        run: echo "Working directory: ${{ steps.vars.outputs.resource_path }}"
+        run: "echo \"Working directory: ${{ steps.vars.outputs.resource_path }}\""
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
       - name: Terraform Init
         run: |
-          cd ${{ steps.vars.outputs.resource_path }}
+          cd "${{ steps.vars.outputs.resource_path }}"
           terraform init
 
       - name: Terraform Format Check
         run: |
-          cd ${{ steps.vars.outputs.resource_path }}
+          cd "${{ steps.vars.outputs.resource_path }}"
           terraform fmt -check
 
       - name: Terraform Validate
         run: |
-          cd ${{ steps.vars.outputs.resource_path }}
+          cd "${{ steps.vars.outputs.resource_path }}"
           terraform validate
 
       - name: Terraform Plan
         run: |
-          cd ${{ steps.vars.outputs.resource_path }}
+          cd "${{ steps.vars.outputs.resource_path }}"
           terraform plan -out=tfplan
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: tfplan-${{ matrix.resource }}
-          path: ${{ steps.vars.outputs.resource_path }}/tfplan
+          name: "tfplan-${{ matrix.resource }}"
+          path: "${{ steps.vars.outputs.resource_path }}/tfplan"
 
       - name: Terraform Apply
         run: |
-          cd ${{ steps.vars.outputs.resource_path }}
+          cd "${{ steps.vars.outputs.resource_path }}"
           terraform apply -auto-approve -var-file=env.auto.tfvars
