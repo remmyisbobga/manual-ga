@@ -1,0 +1,87 @@
+# File: .github/workflows/deploy-dev-resources.yml
+# This workflow deploys the dev environment resources in GCP using Terraform.
+# It uses a matrix strategy to run the same pipeline (validate, plan, deploy)
+# for each resource type (e.g., 00resources, 01networking, etc.) located under envs/01dev.
+# Concurrency is used to prevent race conditions on the Terraform backend for the same resource type.
+
+name: Deploy Dev Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      # Optional input to allow deploying a specific resource type.
+      # Leave empty to deploy all resource types.
+      resource_type:
+        description: 'Optional: Specific resource type to deploy (00resources, 01networking, 02security, 03databases, 04compute). Leave empty to deploy all.'
+        required: false
+
+jobs:
+  deploy:
+    # Dynamic job name showing the resource type being deployed.
+    name: Deploy Dev Resource ${{ matrix.resource }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # The matrix iterates over the defined resource types.
+      matrix:
+        resource: [ '00resources', '01networking', '02security', '03databases', '04compute' ]
+
+    # Concurrency settings ensure that only one deployment for a specific resource type runs at any given time.
+    concurrency:
+      group: dev-${{ matrix.resource }}
+      cancel-in-progress: false
+
+    # Only run if either no specific resource_type is provided or it matches the current matrix value.
+    if: |
+      github.event.inputs.resource_type == '' || github.event.inputs.resource_type == matrix.resource
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        # This checks out your repository code so that Terraform can access the configuration files.
+
+      # Log the current working directory for debugging purposes.
+      - name: Display Working Directory
+        run: echo "Working directory: envs/01dev/${{ matrix.resource }}"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: |
+          # Change directory to the specific resource folder under envs/01dev.
+          cd envs/01dev/${{ matrix.resource }}
+          # Initialize Terraform configuration.
+          terraform init
+
+      - name: Terraform Format Check
+        run: |
+          cd envs/01dev/${{ matrix.resource }}
+          # Check that the Terraform files are properly formatted.
+          terraform fmt -check
+
+      - name: Terraform Validate
+        run: |
+          cd envs/01dev/${{ matrix.resource }}
+          # Validate the Terraform configuration for syntax and internal consistency.
+          terraform validate
+
+      - name: Terraform Plan
+        run: |
+          cd envs/01dev/${{ matrix.resource }}
+          # Generate an execution plan and output it to a file named tfplan.
+          terraform plan -out=tfplan
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          # Artifact name includes the resource type to easily distinguish plans.
+          name: tfplan-${{ matrix.resource }}
+          # Path to the tfplan file generated above.
+          path: envs/01dev/${{ matrix.resource }}/tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd envs/01dev/${{ matrix.resource }}
+          # Apply the Terraform plan using auto-approval and the environment-specific variable file.
+          terraform apply -auto-approve -var-file=env.auto.tfvars
