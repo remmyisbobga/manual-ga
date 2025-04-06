@@ -14,8 +14,8 @@ on:
         required: false
 
 jobs:
-  deploy-00resources:
-    name: "Deploy Dev Resource 00resources"
+  dev-00resources:
+    name: "Dev 00resources"
     runs-on: ubuntu-latest
     concurrency:
       group: "dev-00resources"
@@ -68,8 +68,8 @@ jobs:
           cd "${{ steps.vars.outputs.resource_path }}"
           terraform apply -auto-approve -var-file=env.auto.tfvars
 
-  deploy-01networking:
-    name: "Deploy Dev Resource 01networking"
+  dev-01networking:
+    name: "Dev 01networking"
     runs-on: ubuntu-latest
     concurrency:
       group: "dev-01networking"
@@ -122,8 +122,8 @@ jobs:
           cd "${{ steps.vars.outputs.resource_path }}"
           terraform apply -auto-approve -var-file=env.auto.tfvars
 
-  deploy-02security:
-    name: "Deploy Dev Resource 02security"
+  dev-02security:
+    name: "Dev 02security"
     runs-on: ubuntu-latest
     concurrency:
       group: "dev-02security"
@@ -176,8 +176,8 @@ jobs:
           cd "${{ steps.vars.outputs.resource_path }}"
           terraform apply -auto-approve -var-file=env.auto.tfvars
 
-  deploy-03databases:
-    name: "Deploy Dev Resource 03databases"
+  dev-03databases:
+    name: "Dev 03databases"
     runs-on: ubuntu-latest
     concurrency:
       group: "dev-03databases"
@@ -230,8 +230,8 @@ jobs:
           cd "${{ steps.vars.outputs.resource_path }}"
           terraform apply -auto-approve -var-file=env.auto.tfvars
 
-  deploy-04compute:
-    name: "Deploy Dev Resource 04compute"
+  dev-04compute:
+    name: "Dev 04compute"
     runs-on: ubuntu-latest
     concurrency:
       group: "dev-04compute"
