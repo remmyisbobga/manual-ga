@@ -1,4 +1,4 @@
-name: Terraform GCP Authentication Test
+name: Terraform GCS Bucket Deployment
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
         description: 'Branch to checkout'
         required: true
         type: string
+        default: 'main'
       terraform_action:
         description: 'Terraform action to run (plan or apply)'
         required: true
@@ -14,22 +15,35 @@ on:
         options:
           - plan
           - apply
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+          - prod
+        default: 'dev'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
 
 jobs:
   terraform:
-    name: 'Terraform'
+    name: 'Terraform for ${{ github.event.inputs.environment }}'
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
     permissions:
       contents: read
       id-token: write 
 
     steps:
-
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.branch }}
-
 
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
@@ -37,38 +51,103 @@ jobs:
         with:
           workload_identity_provider: 'projects/neon-well-438222-b6/locations/global/workloadIdentityPools/gh-pooll/providers/gh-provider'
           service_account: 'gh-service-account@neon-well-438222-b6.iam.gserviceaccount.com'
+          
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v1'
 
       - name: Create Terraform file
         run: |
-          cat > main.tf << 'EOL'
+          mkdir -p terraform
+          cat > terraform/main.tf << EOL
           provider "google" {
             project = "neon-well-438222-b6"
             region  = "us-central1"
           }
 
           resource "google_storage_bucket" "test_bucket" {
-            name     = "test-bucket-remmy-unique-name"
+            name     = "test-bucket-remmy-${{ github.event.inputs.environment }}-${GITHUB_RUN_ID}"
             location = "US"
             force_destroy = true
            
             uniform_bucket_level_access = true
+            
+            lifecycle_rule {
+              condition {
+                age = 3
+              }
+              action {
+                type = "Delete"
+              }
+            }
+            
+            labels = {
+              environment = "${{ github.event.inputs.environment }}"
+              managed_by = "terraform"
+              github_run = "\${GITHUB_RUN_ID}"
+            }
+          }
+          
+          output "bucket_name" {
+            value = google_storage_bucket.test_bucket.name
+          }
+          
+          output "bucket_url" {
+            value = google_storage_bucket.test_bucket.url
           }
           EOL
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.0.11
+          terraform_version: 1.5.7
           
       # Initialize Terraform
       - name: Terraform Init
-        run: terraform init
-
-      # Run Terraform Plan or Apply based on input
+        run: |
+          cd terraform
+          terraform init
+      
+      # Format and validate Terraform code
+      - name: Terraform Format
+        run: |
+          cd terraform
+          terraform fmt -check
+          
+      - name: Terraform Validate
+        run: |
+          cd terraform
+          terraform validate
+      
+      # Run Terraform Plan
       - name: Terraform Plan
-        if: ${{ github.event.inputs.terraform_action == 'plan' }}
-        run: terraform plan
-
+        id: plan
+        run: |
+          cd terraform
+          terraform plan -out=tfplan -no-color
+          terraform show -no-color tfplan > tfplan.txt
+        
+      # Save plan output as artifact
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan-${{ github.event.inputs.environment }}
+          path: |
+            terraform/tfplan
+            terraform/tfplan.txt
+          retention-days: 7
+          
+      # Apply changes only when terraform_action is apply
       - name: Terraform Apply
-        if: ${{ github.event.inputs.terraform_action == 'apply' }}
-        run: terraform apply -auto-approve
+        if: github.event.inputs.terraform_action == 'apply'
+        id: apply
+        run: |
+          cd terraform
+          terraform apply -auto-approve tfplan
+          
+      # Output the created resources
+      - name: Terraform Output
+        if: github.event.inputs.terraform_action == 'apply'
+        run: |
+          cd terraform
+          echo "=== Deployed Resources ==="
+          terraform output
