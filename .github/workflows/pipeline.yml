@@ -128,7 +128,7 @@ jobs:
         
       # Save plan output as artifact
       - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: terraform-plan-${{ github.event.inputs.environment }}
           path: |
