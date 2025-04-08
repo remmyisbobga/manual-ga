@@ -1,0 +1,181 @@
+name: "Terraform CI/CD - Dev Environment"
+
+on:
+  push:
+    branches: [ "feat/**" ]
+    paths:
+      - 'envs/01dev/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'envs/01dev/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+      resource_type:
+        description: 'Resource type to deploy'
+        required: true
+        default: '00resources'
+        type: choice
+        options:
+          - "00resources"
+          - "01networking"
+          - "02security"
+          - "03databases"
+          - "04compute"
+          - "all"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  determine-resources:
+    name: Determine Changed Resources
+    runs-on: ubuntu-latest
+    outputs:
+      changed_resources: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Changed Resources
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v2
+        with:
+          filters: |
+            00resources:
+              - 'envs/01dev/00resources/**'
+            01networking:
+              - 'envs/01dev/01networking/**'
+            02security:
+              - 'envs/01dev/02security/**'
+            03databases:
+              - 'envs/01dev/03databases/**'
+            04compute:
+              - 'envs/01dev/04compute/**'
+
+      - name: Set Resource from Workflow Dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ github.event.inputs.resource_type }}" == "all" ]; then
+            echo "changes=00resources,01networking,02security,03databases,04compute" >> $GITHUB_OUTPUT
+          else
+            echo "changes=${{ github.event.inputs.resource_type }}" >> $GITHUB_OUTPUT
+          fi
+        id: dispatch_filter
+
+  validate:
+    name: Validate Changed Resources
+    needs: determine-resources
+    if: github.ref != 'refs/heads/main' && needs.determine-resources.outputs.changed_resources != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/neon-well-438222-b6/locations/global/workloadIdentityPools/gh-pooll/providers/gh-provider'
+          service_account: 'gh-service-account@neon-well-438222-b6.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init & Validate Changed Resources
+        run: |
+          CHANGED_RESOURCES="${{ needs.determine-resources.outputs.changed_resources }}"
+          IFS=',' read -ra RESOURCE_ARRAY <<< "$CHANGED_RESOURCES"
+          
+          for resource in "${RESOURCE_ARRAY[@]}"; do
+            echo "Validating $resource"
+            cd "$GITHUB_WORKSPACE/envs/01dev/$resource"
+            terraform init -backend=false
+            terraform fmt -check
+            terraform validate
+            cd "$GITHUB_WORKSPACE"
+          done
+
+  plan:
+    name: Plan Changed Resources
+    needs: [determine-resources, validate]
+    if: github.ref != 'refs/heads/main' && needs.determine-resources.outputs.changed_resources != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        resource: ${{ fromJSON(format('[%s]', needs.determine-resources.outputs.changed_resources)) }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/neon-well-438222-b6/locations/global/workloadIdentityPools/gh-pooll/providers/gh-provider'
+          service_account: 'gh-service-account@neon-well-438222-b6.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Plan - Dev ${{ matrix.resource }}
+        run: |
+          cd "$GITHUB_WORKSPACE/envs/01dev/${{ matrix.resource }}"
+          terraform init
+          terraform plan -out=tfplan-${{ matrix.resource }}
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ matrix.resource }}
+          path: envs/01dev/${{ matrix.resource }}/tfplan-${{ matrix.resource }}
+
+  deploy:
+    name: Deploy Dev - ${{ matrix.resource }}
+    needs: [determine-resources, plan]
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.base_ref == 'main')) && needs.determine-resources.outputs.changed_resources != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        resource: ${{ fromJSON(format('[%s]', needs.determine-resources.outputs.changed_resources)) }}
+    concurrency:
+      group: "dev-${{ matrix.resource }}"
+      cancel-in-progress: false
+    environment:
+      name: dev
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/neon-well-438222-b6/locations/global/workloadIdentityPools/gh-pooll/providers/gh-provider'
+          service_account: 'gh-service-account@neon-well-438222-b6.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init & Apply
+        run: |
+          cd "$GITHUB_WORKSPACE/envs/01dev/${{ matrix.resource }}"
+          terraform init
+          terraform apply -auto-approve -var-file=env.auto.tfvars
