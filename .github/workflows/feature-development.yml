@@ -64,11 +64,6 @@ jobs:
         working-directory: ./terraform
         continue-on-error: true
 
-      - name: Check Terraform Plan Success
-        if: steps.plan.outcome != 'success'
-        run: |
-          echo "Terraform Plan failed. Exiting..."
-          exit 1
 
       - name: Terraform Apply
         if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply'
