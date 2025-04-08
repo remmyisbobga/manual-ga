@@ -27,19 +27,19 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TF_VERSION: 1.9.0
-      GCP_PROJECT_ID: ''
+      GCP_PROJECT_ID: 'neon-well-438222-b6'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.ref_name }}
 
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
           
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -83,16 +83,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref}}
+          ref: ${{ github.ref_name}}
 
       - name: Create Pull Request
         id: open-pr
         uses: repo-sync/pull-request@v2
         with:
-          source_branch: ${{ github.ref}}
+          source_branch: ${{ github.ref_name}}
           destination_branch: dev
-          pr_title: "Merge ${{ github.ref}} into Dev"
-          pr_body: "This PR merges changes from ${{ github.ref}} into Dev after successful deployment of test resources."
+          pr_title: "Merge ${{ github.ref_name}} into Dev"
+          pr_body: "This PR merges changes from ${{ github.ref_name}} into Dev after successful deployment of test resources."
           pr_draft: false
           pr_label: "feature, needs-review, automated-pr"
           github_token: ${{ secrets.GH_TOKEN }}
