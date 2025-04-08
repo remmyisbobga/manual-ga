@@ -66,11 +66,12 @@ jobs:
 
 
       - name: Terraform Apply
-        if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply'
+        if: github.event.inputs.tf_action == 'apply'
         run: terraform apply -auto-approve -input=false tfplan
         working-directory: ./terraform
 
   create-pr:
+  
     name: Create Pull Request
     needs: terraform-deploy
     if: github.event.inputs.create_pr == 'true'
