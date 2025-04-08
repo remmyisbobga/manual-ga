@@ -58,20 +58,24 @@ jobs:
         working-directory: ./terraform
 
       - name: Terraform Plan
-        if: github.event.inputs.tf_action == 'plan'
+        if: github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
         id: plan
         run: terraform plan -out=tfplan -input=false
         working-directory: ./terraform
         continue-on-error: true
 
+      - name: Check Terraform Plan Success
+        if: steps.plan.outcome != 'success'
+        run: |
+          echo "Terraform Plan failed. Exiting..."
+          exit 1
 
       - name: Terraform Apply
-        if: github.event.inputs.tf_action == 'apply'
+        if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply'
         run: terraform apply -auto-approve -input=false tfplan
         working-directory: ./terraform
 
   create-pr:
-  
     name: Create Pull Request
     needs: terraform-deploy
     if: github.event.inputs.create_pr == 'true'
