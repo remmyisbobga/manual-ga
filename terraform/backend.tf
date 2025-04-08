@@ -11,7 +11,7 @@ terraform {
   }
   
   backend "gcs" {
-    bucket  = "rased-415808-terraform"
+    bucket  = "neon-well-438222-b6-terraform"
     prefix  = "terraform/test/state"
   }
 }
