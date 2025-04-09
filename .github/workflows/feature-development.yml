@@ -1,98 +1,259 @@
 name: Feature Development and PR Workflow
-
 on:
   workflow_dispatch:
     inputs:
-      # feature_branch:
-      #   description: 'Feature branch to run the workflow on'
-      #   required: true
-      #   default: 'feature/*'
       create_pr:
-        description: 'Create a Pull Request to Dev(Main) after deployment?'
+        description: 'Create a Pull Request'
         type: boolean
         required: true
         default: false
+      target_environment:
+        description: 'Target environment'
+        type: choice
+        required: true
+        default: 'test'
+        options:
+          - test
+          - dev
+          - qa
+          - staging
+          - prod
       tf_action:
         description: 'Terraform action to perform'
         type: choice
         required: true
-        default: 'plan'
+        default: 'validate'
         options:
+          - validate
           - plan
           - apply
-
 jobs:
   terraform-deploy:
     name: Terraform Plan and Apply
     runs-on: ubuntu-latest
+    outputs:
+      terraform_success: ${{ steps.set-result.outputs.success }}
     env:
       TF_VERSION: 1.9.0
-      GCP_PROJECT_ID: 'neon-well-438222-b6'
+      GCP_PROJECT_ID: ''
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
+        
+      - name: Log Workflow Parameters
+        run: |
+          echo "::group::Workflow Parameters"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Target Environment: ${{ github.event.inputs.target_environment }}"
+          echo "Terraform Action: ${{ github.event.inputs.tf_action }}"
+          echo "Create PR: ${{ github.event.inputs.create_pr }}"
+          echo "::endgroup::"
+          
+      - name: Set Result Output
+        id: set-result
+        run: |
+          # Set success output based on actual step outcomes
+          if [[ "${{ github.event.inputs.tf_action }}" == "validate" ]]; then
+            if [[ "${{ steps.validate.outcome }}" == "success" ]]; then
+              echo "success=true" >> $GITHUB_OUTPUT
+            else
+              echo "success=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "${{ github.event.inputs.tf_action }}" == "plan" ]]; then
+            if [[ "${{ steps.plan.outcome }}" == "success" ]]; then
+              echo "success=true" >> $GITHUB_OUTPUT
+            else
+              echo "success=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "${{ github.event.inputs.tf_action }}" == "apply" ]]; then
+            if [[ "${{ steps.apply.outcome }}" == "success" ]]; then
+              echo "success=true" >> $GITHUB_OUTPUT
+            else
+              echo "success=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-          project_id: ${{ env.GCP_PROJECT_ID }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+        continue-on-error: false
+
+      - name: Log Authentication Status
+        run: |
+          echo "::group::GCP Authentication"
+          if [[ "${{ steps.auth.outcome }}" == "success" ]]; then
+            echo "✅ Successfully authenticated to GCP"
+          else
+            echo "❌ Failed to authenticate to GCP"
+            exit 1
+          fi
+          echo "::endgroup::"
           
       - name: Set up Cloud SDK
+        id: gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           version: latest
           install_components: 'beta,terraform-tools'
-
+        continue-on-error: false
+      
+          
       - name: Setup Terraform
+        id: terraform-setup
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
+        continue-on-error: false
+      
+        
       - name: Terraform Init
-        if: github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
-        run: terraform init
-        working-directory: ./terraform
-
-      - name: Terraform Plan
-        if: github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
-        id: plan
-        run: terraform plan -out=tfplan -input=false
+        id: init
+        if: github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
+        run: |
+          echo "::group::Terraform Init"
+          terraform init
+          INIT_EXIT_CODE=$?
+          if [ $INIT_EXIT_CODE -ne 0 ]; then
+            echo "❌ Terraform init failed with exit code $INIT_EXIT_CODE"
+            exit $INIT_EXIT_CODE
+          else
+            echo "✅ Terraform init completed successfully"
+          fi
+          echo "::endgroup::"
         working-directory: ./terraform
         continue-on-error: true
-
+      
+      - name: Check Terraform Init Success
+        if: steps.init.outcome != 'success'
+        run: |
+          echo "❌ Terraform Init failed. See logs for details. Exiting..."
+          exit 1
+          
+      - name: Terraform Validate
+        if: github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
+        id: validate
+        run: |
+          echo "::group::Terraform Validate"
+          terraform validate
+          VALIDATE_EXIT_CODE=$?
+          if [ $VALIDATE_EXIT_CODE -ne 0 ]; then
+            echo "❌ Terraform validate failed with exit code $VALIDATE_EXIT_CODE"
+            exit $VALIDATE_EXIT_CODE
+          else
+            echo "✅ Terraform validate completed successfully"
+          fi
+          echo "::endgroup::"
+        working-directory: ./terraform
+        continue-on-error: true
+          
+      - name: Check Terraform Validate Success
+        if: (github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome != 'success'
+        run: |
+          echo "❌ Terraform Validate failed. See logs for details. Exiting..."
+          exit 1
+          
+      - name: Terraform Plan
+        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome == 'success'
+        id: plan
+        run: |
+          echo "::group::Terraform Plan"
+          terraform plan -out=tfplan -input=false
+          PLAN_EXIT_CODE=$?
+          if [ $PLAN_EXIT_CODE -ne 0 ]; then
+            echo "❌ Terraform plan failed with exit code $PLAN_EXIT_CODE"
+            exit $PLAN_EXIT_CODE
+          else
+            echo "✅ Terraform plan completed successfully"
+          fi
+          echo "::endgroup::"
+        working-directory: ./terraform
+        continue-on-error: true
+        
       - name: Check Terraform Plan Success
         if: steps.plan.outcome != 'success'
         run: |
-          echo "Terraform Plan failed. Exiting..."
+          echo "❌ Terraform Plan failed. See logs for details. Exiting..."
           exit 1
+          
       - name: Terraform Apply
+        id: apply
         if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply'
-        run: terraform apply -auto-approve -input=false tfplan
+        run: |
+          echo "::group::Terraform Apply"
+          terraform apply -auto-approve -input=false tfplan
+          APPLY_EXIT_CODE=$?
+          if [ $APPLY_EXIT_CODE -ne 0 ]; then
+            echo "❌ Terraform apply failed with exit code $APPLY_EXIT_CODE"
+            exit $APPLY_EXIT_CODE
+          else
+            echo "✅ Terraform apply completed successfully"
+          fi
+          echo "::endgroup::"
         working-directory: ./terraform
+        continue-on-error: true
+        
+      - name: Check Terraform Apply Success
+        if: github.event.inputs.tf_action == 'apply' && steps.apply.outcome != 'success'
+        run: |
+          echo "❌ Terraform Apply failed. See logs for details. Exiting..."
+          exit 1
+          
+      - name: Summarize Terraform Deployment
+        run: |
+          echo "::group::Deployment Summary"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Target Environment: ${{ github.event.inputs.target_environment }}"
+          echo "Terraform Action: ${{ github.event.inputs.tf_action }}"
+          
+          if [[ "${{ github.event.inputs.tf_action }}" == "apply" ]]; then
+            if [[ "${{ steps.apply.outcome }}" == "success" ]]; then
+              echo "✅ Terraform deployment succeeded!"
+            else
+              echo "❌ Terraform deployment failed!"
+            fi
+          elif [[ "${{ github.event.inputs.tf_action }}" == "plan" ]]; then
+            if [[ "${{ steps.plan.outcome }}" == "success" ]]; then
+              echo "✅ Terraform plan succeeded!"
+            else
+              echo "❌ Terraform plan failed!"
+            fi
+          elif [[ "${{ github.event.inputs.tf_action }}" == "validate" ]]; then
+            if [[ "${{ steps.validate.outcome }}" == "success" ]]; then
+              echo "✅ Terraform validation succeeded!"
+            else
+              echo "❌ Terraform validation failed!"
+            fi
+          fi
+          echo "::endgroup::"
 
   create-pr:
     name: Create Pull Request
     needs: terraform-deploy
-    if: github.event.inputs.create_pr == 'true'
+    if: |
+      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' && ${{ github.event.inputs.target_environment}} != 'test'
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name}}
-
+          ref: ${{ github.ref_name }}
+              
       - name: Create Pull Request
         id: open-pr
         uses: repo-sync/pull-request@v2
         with:
-          source_branch: ${{ github.ref_name}}
-          destination_branch: dev
-          pr_title: "Merge ${{ github.ref_name}} into Dev"
-          pr_body: "This PR merges changes from ${{ github.ref_name}} into Dev after successful deployment of test resources."
+          source_branch: ${{ github.ref_name }}
+          destination_branch: ${ github.event.inputs.target_environment }
+          pr_title: "Merge ${{ github.ref_name }} into  ${{ github.event.inputs.target_environment }}"
+          pr_body: "This PR merges changes from ${{ github.ref_name }} into ${{ github.event.inputs.target_environment }} after successful deployment of test resources."
           pr_draft: false
-          pr_label: "feature, needs-review, automated-pr"
+          pr_label: "feature, needs-review"
           github_token: ${{ secrets.GH_TOKEN }}
