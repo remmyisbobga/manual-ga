@@ -160,7 +160,7 @@ jobs:
           exit 1
           
       - name: Terraform Plan
-        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome == 'success'
+        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply' || github.event.inputs.tf_action == 'validate') && steps.validate.outcome == 'success'
         id: plan
         run: |
           echo "::group::Terraform Plan"
