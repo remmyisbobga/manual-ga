@@ -160,7 +160,7 @@ jobs:
           exit 1
           
       - name: Terraform Plan
-        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome == 'success'
+        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply' || github.event.inputs.tf_action == 'validate') && steps.validate.outcome == 'success'
         id: plan
         run: |
           echo "::group::Terraform Plan"
@@ -237,7 +237,7 @@ jobs:
     name: Create Pull Request
     needs: terraform-deploy
     if: |
-      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' && ${{ github.event.inputs.target_environment}} != 'test'
+      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' &&  github.event.inputs.target_environment != 'test'
     runs-on: ubuntu-latest
     
     steps:
@@ -251,9 +251,8 @@ jobs:
         uses: repo-sync/pull-request@v2
         with:
           source_branch: ${{ github.ref_name }}
-          destination_branch: ${ github.event.inputs.target_environment }
+          destination_branch: ${{ github.event.inputs.target_environment }}
           pr_title: "Merge ${{ github.ref_name }} into  ${{ github.event.inputs.target_environment }}"
           pr_body: "This PR merges changes from ${{ github.ref_name }} into ${{ github.event.inputs.target_environment }} after successful deployment of test resources."
           pr_draft: false
-          pr_label: "feature, needs-review"
           github_token: ${{ secrets.GH_TOKEN }}
