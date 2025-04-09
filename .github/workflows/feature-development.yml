@@ -237,7 +237,7 @@ jobs:
     name: Create Pull Request
     needs: terraform-deploy
     if: |
-      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' && ${{ github.event.inputs.target_environment}} != 'test'
+      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' &&  github.event.inputs.target_environment != 'test'
     runs-on: ubuntu-latest
     
     steps:
@@ -251,7 +251,7 @@ jobs:
         uses: repo-sync/pull-request@v2
         with:
           source_branch: ${{ github.ref_name }}
-          destination_branch: ${ github.event.inputs.target_environment }
+          destination_branch: ${{ github.event.inputs.target_environment }}
           pr_title: "Merge ${{ github.ref_name }} into  ${{ github.event.inputs.target_environment }}"
           pr_body: "This PR merges changes from ${{ github.ref_name }} into ${{ github.event.inputs.target_environment }} after successful deployment of test resources."
           pr_draft: false
