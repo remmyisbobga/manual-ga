@@ -51,32 +51,6 @@ jobs:
           echo "Create PR: ${{ github.event.inputs.create_pr }}"
           echo "::endgroup::"
           
-      - name: Set Result Output
-        id: set-result
-        run: |
-          # Set success output based on actual step outcomes
-          if [[ "${{ github.event.inputs.tf_action }}" == "validate" ]]; then
-            if [[ "${{ steps.validate.outcome }}" == "success" ]]; then
-              echo "success=true" >> $GITHUB_OUTPUT
-            else
-              echo "success=false" >> $GITHUB_OUTPUT
-            fi
-          elif [[ "${{ github.event.inputs.tf_action }}" == "plan" ]]; then
-            if [[ "${{ steps.plan.outcome }}" == "success" ]]; then
-              echo "success=true" >> $GITHUB_OUTPUT
-            else
-              echo "success=false" >> $GITHUB_OUTPUT
-            fi
-          elif [[ "${{ github.event.inputs.tf_action }}" == "apply" ]]; then
-            if [[ "${{ steps.apply.outcome }}" == "success" ]]; then
-              echo "success=true" >> $GITHUB_OUTPUT
-            else
-              echo "success=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "success=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
@@ -115,7 +89,6 @@ jobs:
         
       - name: Terraform Init
         id: init
-        if: github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
         run: |
           echo "::group::Terraform Init"
           terraform init
@@ -135,6 +108,28 @@ jobs:
         run: |
           echo "❌ Terraform Init failed. See logs for details. Exiting..."
           exit 1
+      
+      - name: Check and Select Terraform Workspace
+        id: workspace
+        run: |
+          echo "::group::Terraform Workspace"
+          # Check if workspace exists
+          WORKSPACE_EXISTS=$(terraform workspace list | grep -w "${WORKSPACE_NAME}" || echo "")
+          
+          if [ -z "$WORKSPACE_EXISTS" ]; then
+            echo "Creating new workspace: ${WORKSPACE_NAME}"
+            terraform workspace new ${WORKSPACE_NAME}
+          else
+            echo "Selecting existing workspace: ${WORKSPACE_NAME}"
+            terraform workspace select ${WORKSPACE_NAME}
+          fi
+          
+          echo "Current workspace: $(terraform workspace show)"
+          echo "::endgroup::"
+        working-directory: ./terraform
+        env:
+          WORKSPACE_NAME: ${{ github.event.inputs.target_environment }}
+        continue-on-error: false
           
       - name: Terraform Validate
         if: github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
@@ -154,17 +149,17 @@ jobs:
         continue-on-error: true
           
       - name: Check Terraform Validate Success
-        if: (github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome != 'success'
+        if: steps.validate.outcome != 'success'
         run: |
           echo "❌ Terraform Validate failed. See logs for details. Exiting..."
           exit 1
           
       - name: Terraform Plan
-        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply' || github.event.inputs.tf_action == 'validate') && steps.validate.outcome == 'success'
+        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome == 'success'
         id: plan
         run: |
           echo "::group::Terraform Plan"
-          terraform plan -out=tfplan -input=false
+          terraform plan -out=tfplan -input=false -var="environment=${{ github.event.inputs.target_environment }}"
           PLAN_EXIT_CODE=$?
           if [ $PLAN_EXIT_CODE -ne 0 ]; then
             echo "❌ Terraform plan failed with exit code $PLAN_EXIT_CODE"
@@ -211,6 +206,7 @@ jobs:
           echo "Branch: ${{ github.ref_name }}"
           echo "Target Environment: ${{ github.event.inputs.target_environment }}"
           echo "Terraform Action: ${{ github.event.inputs.tf_action }}"
+          echo "Terraform Workspace: ${{ github.event.inputs.target_environment }}"
           
           if [[ "${{ github.event.inputs.tf_action }}" == "apply" ]]; then
             if [[ "${{ steps.apply.outcome }}" == "success" ]]; then
@@ -237,7 +233,7 @@ jobs:
     name: Create Pull Request
     needs: terraform-deploy
     if: |
-      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' &&  github.event.inputs.target_environment != 'test'
+      github.event.inputs.create_pr == 'true' && needs.terraform-deploy.result == 'success' && github.event.inputs.target_environment != 'test'
     runs-on: ubuntu-latest
     
     steps:
