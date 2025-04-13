@@ -178,7 +178,7 @@ jobs:
           
       - name: Terraform Apply
         id: apply
-        if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply' && github.event.inputs.target_environment = 'test'
+        if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply' && github.event.inputs.target_environment == 'test'
         run: |
           echo "::group::Terraform Apply"
           terraform apply -auto-approve -input=false tfplan
