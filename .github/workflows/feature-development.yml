@@ -24,8 +24,7 @@ on:
         required: true
         default: 'validate'
         options:
-          - validate
-          - plan
+          - 'validate-plan'
           - apply
 jobs:
   terraform-deploy:
@@ -132,7 +131,7 @@ jobs:
         continue-on-error: false
           
       - name: Terraform Validate
-        if: github.event.inputs.tf_action == 'validate' || github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply'
+        if: github.event.inputs.tf_action == 'validate-plan' || github.event.inputs.tf_action == 'apply'
         id: validate
         run: |
           echo "::group::Terraform Validate"
@@ -155,7 +154,7 @@ jobs:
           exit 1
           
       - name: Terraform Plan
-        if: (github.event.inputs.tf_action == 'plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome == 'success'
+        if: (github.event.inputs.tf_action == 'validate-plan' || github.event.inputs.tf_action == 'apply') && steps.validate.outcome == 'success'
         id: plan
         run: |
           echo "::group::Terraform Plan"
@@ -179,7 +178,7 @@ jobs:
           
       - name: Terraform Apply
         id: apply
-        if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply'
+        if: steps.plan.outcome == 'success' && github.event.inputs.tf_action == 'apply' && github.event.inputs.target_environment = 'test'
         run: |
           echo "::group::Terraform Apply"
           terraform apply -auto-approve -input=false tfplan
@@ -214,7 +213,7 @@ jobs:
             else
               echo "❌ Terraform deployment failed!"
             fi
-          elif [[ "${{ github.event.inputs.tf_action }}" == "plan" ]]; then
+          elif [[ "${{ github.event.inputs.tf_action }}" == "validate-plan" ]]; then
             if [[ "${{ steps.plan.outcome }}" == "success" ]]; then
               echo "✅ Terraform plan succeeded!"
             else
