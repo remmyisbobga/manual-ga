@@ -1,9 +1,13 @@
 name: Post-Merge Cleanup
+
 on:
   pull_request:
     types: [closed]
     branches:
       - dev
+      - qa
+      - staging
+      - prod
 
 jobs:
   cleanup:
@@ -11,42 +15,102 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TF_VERSION: 1.9.0
-      GCP_PROJECT_ID: 'rased-415808'
+      GCP_PROJECT_ID: ''
+    
     steps:
-      - name: Checkout code for feature branch
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
-          
+
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
         with:
           version: latest
           install_components: 'beta,terraform-tools'
-          
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-          
+
       - name: Terraform Init
         run: terraform init
         working-directory: ./terraform
+
+      - name: Check and Select Terraform Workspace
+        id: workspace
+        run: |
+          echo "::group::Terraform Workspace"
+          # Check if workspace exists
+          WORKSPACE_EXISTS=$(terraform workspace list | grep -w "${WORKSPACE_NAME}" || echo "")
+          
+          if [ -z "$WORKSPACE_EXISTS" ]; then
+            echo "Creating new workspace: ${WORKSPACE_NAME}"
+            terraform workspace new ${WORKSPACE_NAME}
+          else
+            echo "Selecting existing workspace: ${WORKSPACE_NAME}"
+            terraform workspace select ${WORKSPACE_NAME}
+          fi
+          
+          echo "Current workspace: $(terraform workspace show)"
+          echo "::endgroup::"
+        working-directory: ./terraform
+        env:
+          WORKSPACE_NAME: ${{ github.event.pull_request.base.ref }}
+        continue-on-error: false
+
+      - name: Terraform Plan for Base Branch
+        run: terraform plan
+        working-directory: ./terraform
+
+      - name: Terraform Apply for Base Branch
+        run: terraform apply -auto-approve -input=false
+        working-directory: ./terraform
+
+      - name: Select Feature Branch Terraform Workspace
+        if: github.event.pull_request.base.ref == 'dev'
+        run: |
+          # Check and Select Terraform Workspace for feature branch
+          echo "::group::Feature Branch Terraform Workspace"
+          # Check if workspace exists
+          WORKSPACE_EXISTS=$(terraform workspace list | grep -w "${WORKSPACE_NAME}" || echo "")
+          
+          if [ -z "$WORKSPACE_EXISTS" ]; then
+            echo "Creating new workspace: ${WORKSPACE_NAME}"
+            terraform workspace new ${WORKSPACE_NAME}
+          else
+            echo "Selecting existing workspace: ${WORKSPACE_NAME}"
+            terraform workspace select ${WORKSPACE_NAME}
+          fi
+          
+          echo "Current workspace: $(terraform workspace show)"
+          echo "::endgroup::"
+        working-directory: ./terraform
+        env:
+          WORKSPACE_NAME: test
+        continue-on-error: false
         
-      - name: Terraform Destroy (Feature Resources)
+      - name: Terraform Plan for Feature Branch
+        if: github.event.pull_request.base.ref == 'dev'
+        run: terraform plan
+        working-directory: ./terraform
+        
+      - name: Terraform Destroy Feature Branch Resources
+        if: github.event.pull_request.base.ref == 'dev'
         run: terraform destroy -auto-approve -input=false
         working-directory: ./terraform
 
-          
       - name: Delete Feature Branch
+        if: github.event.pull_request.base.ref == 'dev'
         uses: dawidd6/action-delete-branch@v3
         with:
           branches: ${{ github.event.pull_request.head.ref }}
