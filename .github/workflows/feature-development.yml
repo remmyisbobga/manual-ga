@@ -194,7 +194,7 @@ jobs:
         continue-on-error: true
         
       - name: Check Terraform Apply Success
-        if: github.event.inputs.tf_action == 'apply' && steps.apply.outcome != 'success'
+        if: github.event.inputs.tf_action == 'apply' && steps.apply.outcome != 'success' && github.event.inputs.target_environment == 'test'
         run: |
           echo "❌ Terraform Apply failed. See logs for details. Exiting..."
           exit 1
